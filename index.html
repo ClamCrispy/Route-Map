@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RouteMapper — Road Route Planner</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c27;
+    --border: #2a2a3d;
+    --accent: #00e5a0;
+    --accent2: #7b61ff;
+    --danger: #ff5c5c;
+    --text: #e8e8f0;
+    --muted: #6b6b8a;
+    --start: #00e5a0;
+    --end: #ff5c5c;
+    --mid: #7b61ff;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100dvh;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    grid-template-rows: 100%;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 10;
+  }
+
+  #sidebar-header {
+    padding: 24px 24px 20px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--surface) 0%, #161622 100%);
+  }
+
+  .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .logo-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.85); }
+  }
+
+  .tagline {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  #sidebar-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .section-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* ── WAYPOINTS ── */
+  #waypoints-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .waypoint-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 1fr 28px;
+    gap: 6px;
+    align-items: center;
+    animation: slideIn 0.2s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .wp-badge {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  .wp-badge.start { background: rgba(0,229,160,0.15); color: var(--start); border: 1px solid var(--start); }
+  .wp-badge.end   { background: rgba(255,92,92,0.15);  color: var(--end);   border: 1px solid var(--end); }
+  .wp-badge.mid   { background: rgba(123,97,255,0.15); color: var(--mid);   border: 1px solid var(--mid); }
+
+  .wp-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    width: 100%;
+    transition: border-color 0.15s;
+    -moz-appearance: textfield;
+  }
+
+  .wp-input:focus {
+    outline: none;
+    border-color: var(--accent2);
+  }
+
+  .wp-input::placeholder { color: var(--muted); }
+  .wp-input::-webkit-inner-spin-button { display: none; }
+
+  .btn-remove {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .btn-remove:hover { border-color: var(--danger); color: var(--danger); background: rgba(255,92,92,0.08); }
+  .btn-remove.hidden { visibility: hidden; pointer-events: none; }
+
+  /* ── BUTTONS ── */
+  .btn-add {
+    width: 100%;
+    padding: 9px;
+    border-radius: 8px;
+    border: 1px dashed var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-bottom: 20px;
+  }
+
+  .btn-add:hover { border-color: var(--accent2); color: var(--accent2); background: rgba(123,97,255,0.06); }
+
+  .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
+  /* Mode toggle */
+  .mode-toggle {
+    display: flex;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 20px;
+    gap: 3px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 7px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mode-btn.active {
+    background: var(--accent2);
+    color: #fff;
+  }
+
+  /* Route btn */
+  #btn-route {
+    width: 100%;
+    padding: 13px;
+    border-radius: 10px;
+    border: none;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #btn-route::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  #btn-route:hover::after { opacity: 0.1; }
+  #btn-route:active { transform: scale(0.98); }
+  #btn-route:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+
+  #btn-clear {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  #btn-clear:hover { border-color: var(--danger); color: var(--danger); }
+
+  /* ── STATS ── */
+  #stats-panel {
+    margin-top: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    display: none;
+    animation: fadeUp 0.3s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  #stats-panel.visible { display: block; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--accent);
+  }
+
+  .stat-unit {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 3px;
+  }
+
+  /* Segments */
+  #segments-list {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .segment-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--surface);
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+  }
+
+  .segment-name { color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .segment-dist { color: var(--accent); font-weight: 500; }
+
+  /* ── ERROR ── */
+  #error-msg {
+    display: none;
+    background: rgba(255,92,92,0.1);
+    border: 1px solid rgba(255,92,92,0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--danger);
+    margin-top: 12px;
+  }
+
+  #error-msg.visible { display: block; }
+
+  /* ── MAP ── */
+  #map {
+    width: 100%;
+    height: 100%;
+    background: #0d0d18;
+  }
+
+  /* Loading spinner overlay */
+  #loading {
+    display: none;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 999;
+    background: rgba(10,10,15,0.85);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 28px;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    backdrop-filter: blur(8px);
+    gap: 12px;
+    align-items: center;
+  }
+
+  #loading.visible { display: flex; }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Click hint */
+  #map-hint {
+    position: absolute;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    background: rgba(19,19,26,0.9);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-size: 11px;
+    color: var(--muted);
+    pointer-events: none;
+    backdrop-filter: blur(6px);
+    white-space: nowrap;
+    transition: opacity 0.3s;
+  }
+
+  /* Leaflet dark overrides */
+  .leaflet-control-attribution { background: rgba(10,10,15,0.7) !important; color: #555 !important; }
+  .leaflet-control-attribution a { color: #666 !important; }
+  .leaflet-control-zoom a { background: var(--surface) !important; color: var(--text) !important; border-color: var(--border) !important; }
+  .leaflet-popup-content-wrapper { background: var(--surface) !important; border: 1px solid var(--border); color: var(--text) !important; border-radius: 10px !important; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .leaflet-popup-tip { background: var(--surface) !important; }
+
+  #map-wrap { position: relative; width: 100%; height: 100%; }
+
+  /* Mobile */
+  @media (max-width: 700px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    #sidebar { max-height: 55dvh; overflow-y: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    #map-wrap { height: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <div class="logo"><span class="logo-dot"></span>RouteMapper</div>
+    <div class="tagline">Road-following routes · Powered by OSRM</div>
+  </div>
+
+  <div id="sidebar-body">
+    <div class="section-label">Waypoints</div>
+    <div id="waypoints-list"></div>
+    <button class="btn-add" onclick="addWaypoint()">+ Add stop</button>
+
+    <div class="section-label">Travel Mode</div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" data-mode="driving"   onclick="setMode(this)">🚗 Drive</button>
+      <button class="mode-btn"        data-mode="cycling"   onclick="setMode(this)">🚲 Cycle</button>
+      <button class="mode-btn"        data-mode="foot"      onclick="setMode(this)">🚶 Walk</button>
+    </div>
+
+    <button id="btn-route" onclick="calcRoute()">Calculate Route</button>
+    <button id="btn-clear" onclick="clearAll()">Clear map</button>
+
+    <div id="error-msg"></div>
+
+    <div id="stats-panel">
+      <div class="section-label">Route Summary</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Distance</div>
+          <div class="stat-value" id="stat-dist">—<span class="stat-unit">km</span></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Est. Time</div>
+          <div class="stat-value" id="stat-time">—<span class="stat-unit">min</span></div>
+        </div>
+      </div>
+      <div id="segments-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAP ── -->
+<div id="map-wrap">
+  <div id="map"></div>
+  <div id="loading"><div class="spinner"></div>Routing…</div>
+  <div id="map-hint">💡 Click the map to set waypoint coordinates</div>
+</div>
+
+<script>
+// ── State ──
+let waypoints = [];   // [{lat, lon, name}]
+let travelMode = 'driving';
+let routeLayers = [];
+let markerLayers = [];
+let clickTarget = null; // which waypoint index to fill on map click
+
+// ── Map init ──
+const map = L.map('map', { zoomControl: true }).setView([34.07, -118.295], 12);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO',
+  maxZoom: 19
+}).addTo(map);
+
+map.on('click', e => {
+  if (clickTarget !== null) {
+    waypoints[clickTarget].lat = e.latlng.lat.toFixed(5);
+    waypoints[clickTarget].lon = e.latlng.lng.toFixed(5);
+    renderWaypointList();
+    clickTarget = null;
+    document.getElementById('map-hint').style.opacity = '0';
+    setTimeout(() => document.getElementById('map-hint').style.opacity = '1', 2000);
+  }
+});
+
+// ── Default example ──
+function init() {
+  waypoints = [
+    { lat: '34.11840', lon: '-118.30040', name: 'Griffith Observatory' },
+    { lat: '34.02240', lon: '-118.28510', name: 'USC (University of Southern California)' }
+  ];
+  renderWaypointList();
+}
+
+// ── Waypoint list rendering ──
+function renderWaypointList() {
+  const list = document.getElementById('waypoints-list');
+  list.innerHTML = '';
+  waypoints.forEach((wp, i) => {
+    const isStart = i === 0;
+    const isEnd   = i === waypoints.length - 1 && waypoints.length > 1;
+    const badgeClass = isStart ? 'start' : isEnd ? 'end' : 'mid';
+    const badgeLabel = isStart ? 'A' : isEnd ? 'Z' : String.fromCharCode(65 + i);
+
+    const row = document.createElement('div');
+    row.className = 'waypoint-row';
+    row.innerHTML = `
+      <div class="wp-badge ${badgeClass}" title="Click map to set" style="cursor:pointer" onclick="startMapClick(${i})">${badgeLabel}</div>
+      <input class="wp-input" type="number" step="any" placeholder="Latitude"
+        value="${wp.lat}" oninput="waypoints[${i}].lat=this.value" />
+      <input class="wp-input" type="number" step="any" placeholder="Longitude"
+        value="${wp.lon}" oninput="waypoints[${i}].lon=this.value" />
+      <button class="btn-remove ${waypoints.length <= 2 ? 'hidden' : ''}"
+        onclick="removeWaypoint(${i})" title="Remove">×</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function addWaypoint() {
+  waypoints.push({ lat: '', lon: '', name: `Stop ${waypoints.length + 1}` });
+  renderWaypointList();
+}
+
+function removeWaypoint(i) {
+  if (waypoints.length <= 2) return;
+  waypoints.splice(i, 1);
+  renderWaypointList();
+}
+
+function startMapClick(i) {
+  clickTarget = i;
+  document.getElementById('map-hint').textContent = `📍 Click map to set waypoint ${String.fromCharCode(65+i)}`;
+  document.getElementById('map-hint').style.opacity = '1';
+}
+
+function setMode(btn) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  travelMode = btn.dataset.mode;
+}
+
+// ── OSRM routing ──
+async function calcRoute() {
+  hideError();
+  const pts = waypoints.map(wp => ({ lat: parseFloat(wp.lat), lon: parseFloat(wp.lon) }));
+  if (pts.some(p => isNaN(p.lat) || isNaN(p.lon))) {
+    showError('Please fill in all waypoint coordinates.');
+    return;
+  }
+
+  setLoading(true);
+  clearMap();
+
+  try {
+    const profile = { driving: 'car', cycling: 'bike', foot: 'foot' }[travelMode];
+    const coordStr = pts.map(p => `${p.lon},${p.lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/${profile}/${coordStr}?overview=full&geometries=geojson&steps=false`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`OSRM error ${res.status}`);
+    const data = await res.json();
+    if (data.code !== 'Ok') throw new Error(data.message || 'Routing failed');
+
+    const route = data.routes[0];
+    const totalDist = (route.distance / 1000).toFixed(2);
+    const totalTime = Math.round(route.duration / 60);
+
+    // Draw route
+    const routeLine = L.geoJSON(route.geometry, {
+      style: { color: '#00e5a0', weight: 5, opacity: 0.9,
+               dashArray: null, lineCap: 'round', lineJoin: 'round' }
+    }).addTo(map);
+    routeLayers.push(routeLine);
+
+    // Draw glow
+    const glow = L.geoJSON(route.geometry, {
+      style: { color: '#00e5a0', weight: 12, opacity: 0.15 }
+    }).addTo(map);
+    routeLayers.push(glow);
+
+    // Markers
+    const colors = ['#00e5a0', '#7b61ff', '#7b61ff', '#7b61ff', '#ff5c5c'];
+    pts.forEach((pt, i) => {
+      const isStart = i === 0, isEnd = i === pts.length - 1;
+      const color = isStart ? '#00e5a0' : isEnd ? '#ff5c5c' : '#7b61ff';
+      const label = isStart ? 'A' : isEnd ? 'Z' : String.fromCharCode(65 + i);
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="
+          width:32px;height:32px;border-radius:50%;
+          background:${color};color:#000;
+          display:flex;align-items:center;justify-content:center;
+          font-family:'Syne',sans-serif;font-weight:800;font-size:13px;
+          box-shadow:0 0 16px ${color}88;
+          border:2px solid rgba(255,255,255,0.2);
+        ">${label}</div>`,
+        iconSize: [32, 32], iconAnchor: [16, 16]
+      });
+      const m = L.marker([pt.lat, pt.lon], { icon })
+        .bindPopup(`<b>${waypoints[i].name || label}</b><br>${pt.lat.toFixed(5)}, ${pt.lon.toFixed(5)}`)
+        .addTo(map);
+      markerLayers.push(m);
+    });
+
+    // Fit bounds
+    map.fitBounds(routeLine.getBounds(), { padding: [40, 40] });
+
+    // Stats
+    document.getElementById('stat-dist').innerHTML = `${totalDist}<span class="stat-unit">km</span>`;
+    document.getElementById('stat-time').innerHTML = `${totalTime}<span class="stat-unit">min</span>`;
+
+    // Segments
+    const segList = document.getElementById('segments-list');
+    segList.innerHTML = '';
+    if (data.routes[0].legs) {
+      data.routes[0].legs.forEach((leg, i) => {
+        const from = waypoints[i]?.name || `Point ${String.fromCharCode(65+i)}`;
+        const to   = waypoints[i+1]?.name || `Point ${String.fromCharCode(65+i+1)}`;
+        const dist = (leg.distance / 1000).toFixed(1);
+        const seg = document.createElement('div');
+        seg.className = 'segment-row';
+        seg.innerHTML = `<span class="segment-name" title="${from} → ${to}">${from} → ${to}</span>
+                         <span class="segment-dist">${dist} km</span>`;
+        segList.appendChild(seg);
+      });
+    }
+
+    document.getElementById('stats-panel').classList.add('visible');
+
+  } catch (err) {
+    showError(`Routing failed: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function clearMap() {
+  routeLayers.forEach(l => map.removeLayer(l));
+  markerLayers.forEach(l => map.removeLayer(l));
+  routeLayers = []; markerLayers = [];
+  document.getElementById('stats-panel').classList.remove('visible');
+}
+
+function clearAll() {
+  clearMap();
+  hideError();
+  waypoints = [
+    { lat: '', lon: '', name: 'Start' },
+    { lat: '', lon: '', name: 'End' }
+  ];
+  renderWaypointList();
+}
+
+function setLoading(v) {
+  document.getElementById('loading').classList.toggle('visible', v);
+  document.getElementById('btn-route').disabled = v;
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('error-msg').classList.remove('visible');
+}
+
+init();
+</script>
+</body>
+</html>
