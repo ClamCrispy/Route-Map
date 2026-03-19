@@ -1,0 +1,68 @@
+:root{
+  --bg:#fafaf8;--surface:#ffffff;--border:#e8e4de;--border2:#d0c9bf;
+  --text:#1a1814;--muted:#8a8070;
+  --shadow:0 2px 12px rgba(0,0,0,0.07);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"DM Sans",sans-serif;background:var(--bg);color:var(--text);
+  height:100dvh;display:grid;grid-template-columns:400px 1fr;overflow:hidden}
+#sidebar{background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden}
+#header{padding:26px 28px 20px;border-bottom:1px solid var(--border)}
+.trip-eyebrow{font-family:"DM Mono",monospace;font-size:10px;letter-spacing:0.18em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.trip-title{font-family:"Playfair Display",serif;font-size:21px;font-weight:700;
+  color:var(--text);line-height:1.25}
+#day-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg);
+  overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+#day-tabs::-webkit-scrollbar{display:none}
+.day-tab{flex:1;padding:13px 8px 11px;border:none;background:transparent;
+  cursor:pointer;text-align:center;border-bottom:2px solid transparent;transition:all 0.18s;min-width:80px}
+.day-tab-label{font-weight:500;font-size:13px;color:var(--muted);display:block;transition:color 0.18s}
+.day-tab-date{font-family:"DM Mono",monospace;font-size:10px;color:var(--muted);
+  opacity:0.65;display:block;margin-top:2px}
+.day-tab.active{border-bottom-color:#c8692a;background:var(--surface)}
+.day-tab.active .day-tab-label{color:#c8692a;font-weight:600}
+.day-tab.active .day-tab-date{color:#c8692a;opacity:0.75}
+.day-tab:hover:not(.active) .day-tab-label{color:var(--text)}
+#stops-panel{flex:1;overflow-y:auto;padding:24px 28px;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.stops-list{display:flex;flex-direction:column;position:relative}
+.stop-row{display:flex;gap:16px;align-items:flex-start;position:relative;
+  padding-bottom:22px;animation:fadeUp 0.28s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.stop-info{flex:1;padding-top:5px}
+.stop-name{font-weight:500;font-size:14px;color:var(--text);line-height:1.3}
+.seg-connector{
+  position:absolute;
+  left:14px;
+  top:34px;
+  bottom:2px;
+  width:3px;
+  background:linear-gradient(to bottom,var(--border2),var(--border));
+  cursor:pointer;
+  z-index:0;
+  transition:background 0.18s,width 0.18s,left 0.18s;
+}
+.seg-connector:hover,.seg-connector.active{
+  background:#c8692a;
+  width:3px;
+  left:14px;
+}
+.stop-badge{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-family:"DM Mono",monospace;font-weight:500;font-size:12px;
+  flex-shrink:0;position:relative;z-index:2;cursor:pointer;
+  transition:transform 0.15s,box-shadow 0.15s;border:2px solid transparent}
+.stop-badge:hover{transform:scale(1.12);box-shadow:var(--shadow)}
+#map-wrap{position:relative;width:100%;height:100%}
+#map{width:100%;height:100%}
+.leaflet-control-attribution{background:rgba(255,255,255,0.82)!important}
+.leaflet-popup-content-wrapper{background:white!important;border:1px solid var(--border)!important;
+  border-radius:10px!important;font-family:"DM Sans",sans-serif;font-size:13px;
+  box-shadow:var(--shadow)!important;color:var(--text)!important}
+.leaflet-popup-tip{background:white!important}
+@media(max-width:700px){
+  body{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  #sidebar{max-height:54dvh}
+  #map-wrap{height:100%}
+}
